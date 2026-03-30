@@ -1,0 +1,20 @@
+[project]
+name = "pixi-gh-actions"
+description = "Package GitHub Actions as conda packages and execute them via pixi"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[dependencies]
+python = ">=3.11"
+pyyaml = ">=6"
+rattler-build = ">=0.22"
+
+[tasks]
+# Generate a recipe for a single action: pixi run generate actions/checkout@v4.2.2
+generate = "python generate_recipe.py"
+
+# Execute a workflow file: pixi run execute example-workflow.yml
+execute = "python executor.py"
+
+# Build all recipes in ./recipes/ into ./channel/
+build-all = { cmd = "python executor.py --build-only", description = "Build all recipes in ./recipes/ into ./channel/" }

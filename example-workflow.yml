@@ -1,0 +1,52 @@
+# Example workflow for testing the pixi-gh-actions executor.
+#
+# To run locally:
+#   python executor.py example-workflow.yml
+#
+# To run only the "build" job:
+#   python executor.py example-workflow.yml --job build
+#
+# If packages are already built, skip the build phase:
+#   python executor.py example-workflow.yml --skip-build
+
+name: Example CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GREETING: "Hello from pixi-gh-actions"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Print greeting
+        run: echo "$GREETING"
+
+      - name: Show Python version
+        id: pyver
+        run: |
+          python --version
+          echo "version=$(python --version 2>&1 | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Use output from previous step
+        run: echo "Python version is ${{ steps.pyver.outputs.version }}"
+
+      - name: Run tests (example)
+        run: |
+          echo "Running tests..."
+          python -c "import sys; print('sys.version =', sys.version)"
