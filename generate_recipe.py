@@ -188,17 +188,19 @@ def render_bash_entry_point(owner: str, repo: str, meta: dict[str, Any]) -> str:
     )
 
     # --- --help text ---
+    # Use _sh_quote for ALL user-facing strings to safely embed backticks,
+    # $-signs and other special chars that appear in action descriptions.
+    def _echo(text: str) -> str:
+        return f"  echo {_sh_quote(text)}"
+
     w("_usage() {")
-    w(f'  echo "Usage: {bname} [key=value ...] [OPTIONS]"')
-    w(f'  echo ""')
-    w(f'  echo "Run GitHub Action: {action_name}"')
+    w(_echo(f"Usage: {bname} [key=value ...] [OPTIONS]"))
+    w(_echo(""))
+    w(_echo(f"Run GitHub Action: {action_name}"))
     if description:
         for desc_line in description.splitlines()[:3]:
-            w(f'  echo {_sh_quote(desc_line)}')
-    w(
-        '  echo ""',
-        '  echo "Inputs  (key=value positional args or INPUT_KEY env vars):"',
-    )
+            w(_echo(desc_line))
+    w(_echo(""), _echo("Inputs  (key=value positional args or INPUT_KEY env vars):"))
     for inp_name, inp_def in inputs_def.items():
         default = inp_def.get("default")
         desc    = (inp_def.get("description") or "").strip().splitlines()[0][:68] if inp_def.get("description") else ""
@@ -208,17 +210,17 @@ def render_bash_entry_point(owner: str, repo: str, meta: dict[str, Any]) -> str:
             suffix = f"  [default: {default}]"
         elif req:
             suffix = "  (required)"
-        w(f'  echo "  {inp_name}={suffix}"')
+        w(_echo(f"  {inp_name}={suffix}"))
         if desc:
-            w(f'  echo "      {desc}"')
+            w(_echo(f"      {desc}"))
     w(
-        '  echo ""',
-        '  echo "Options:"',
-        '  echo "  --inputs-json JSON   All inputs as a JSON object string"',
-        '  echo "  --inputs-file FILE   YAML or JSON file with inputs (YAML requires yq)"',
-        '  echo "  --post               Run the post/cleanup step instead of main"',
-        '  echo "  --workspace DIR      Set GITHUB_WORKSPACE (default: cwd)"',
-        '  echo "  --env KEY=VALUE      Extra environment variable (repeatable)"',
+        _echo(""),
+        _echo("Options:"),
+        _echo("  --inputs-json JSON   All inputs as a JSON object string"),
+        _echo("  --inputs-file FILE   YAML or JSON file with inputs (YAML requires yq)"),
+        _echo("  --post               Run the post/cleanup step instead of main"),
+        _echo("  --workspace DIR      Set GITHUB_WORKSPACE (default: cwd)"),
+        _echo("  --env KEY=VALUE      Extra environment variable (repeatable)"),
         "}",
         "",
     )

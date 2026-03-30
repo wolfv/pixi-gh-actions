@@ -13,7 +13,7 @@ set -euo pipefail
 _OWNER='actions'
 _REPO='checkout'
 _MAIN_SCRIPT='dist/index.js'
-_POST_SCRIPT='dist/post.js'
+_POST_SCRIPT='dist/index.js'
 
 # Locate the conda prefix: this script lives at $PREFIX/bin/<name>
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,41 +27,59 @@ _json_inputs=''
 _file_inputs=''
 
 _usage() {
-  echo "Usage: checkout [key=value ...] [OPTIONS]"
-  echo ""
-  echo "Run GitHub Action: Checkout"
-  echo "Check out a Git repository at a particular version"
-  echo ""
-  echo "Inputs  (key=value positional args or INPUT_KEY env vars):"
-  echo "  repository=    Repository name with owner (required if not in env)"
-  echo "      The repository (owner/repo) to check out."
-  echo "  ref=           Branch, tag or SHA to check out"
-  echo "  token=         [default: \${{ github.token }}]"
-  echo "      Personal access token (PAT) used to fetch the repository."
-  echo "  ssh-key=       SSH key used to fetch the repository"
-  echo "  fetch-depth=   [default: 1]"
-  echo "      Number of commits to fetch. 0 = all history."
-  echo "  fetch-tags=    [default: false]"
-  echo "      Whether to fetch tags, even if fetch-depth > 0."
-  echo "  lfs=           [default: false]"
-  echo "      Whether to download Git-LFS files."
-  echo "  submodules=    [default: false]"
-  echo "      Whether to checkout submodules."
-  echo "  clean=         [default: true]"
-  echo "      Whether to execute 'git clean' before fetching."
-  echo "  persist-credentials=  [default: true]"
-  echo "      Whether to configure the token or SSH key in local git config."
-  echo "  path=          Relative path under GITHUB_WORKSPACE to checkout."
-  echo "  sparse-checkout=  Patterns to use for a sparse checkout."
-  echo "  set-safe-directory=  [default: true]"
-  echo "  github-server-url=   Override the GitHub server URL."
-  echo ""
-  echo "Options:"
-  echo "  --inputs-json JSON   All inputs as a JSON object string"
-  echo "  --inputs-file FILE   YAML or JSON file with inputs (YAML requires yq)"
-  echo "  --post               Run the post/cleanup step instead of main"
-  echo "  --workspace DIR      Set GITHUB_WORKSPACE (default: cwd)"
-  echo "  --env KEY=VALUE      Extra environment variable (repeatable)"
+  echo 'Usage: checkout [key=value ...] [OPTIONS]'
+  echo ''
+  echo 'Run GitHub Action: Checkout'
+  echo 'Checkout a Git repository at a particular version'
+  echo ''
+  echo 'Inputs  (key=value positional args or INPUT_KEY env vars):'
+  echo '  repository=  [default: ${{ github.repository }}]'
+  echo '      Repository name with owner. For example, actions/checkout'
+  echo '  ref='
+  echo '      The branch, tag or SHA to checkout. When checking out the repository'
+  echo '  token=  [default: ${{ github.token }}]'
+  echo '      Personal access token (PAT) used to fetch the repository. The PAT is'
+  echo '  ssh-key='
+  echo '      SSH key used to fetch the repository. The SSH key is configured with'
+  echo '  ssh-known-hosts='
+  echo '      Known hosts in addition to the user and global host key database. Th'
+  echo '  ssh-strict=  [default: True]'
+  echo '      Whether to perform strict host key checking. When true, adds the opt'
+  echo '  ssh-user=  [default: git]'
+  echo '      The user to use when connecting to the remote SSH host. By default '\'''
+  echo '  persist-credentials=  [default: True]'
+  echo '      Whether to configure the token or SSH key with the local git config'
+  echo '  path='
+  echo '      Relative path under $GITHUB_WORKSPACE to place the repository'
+  echo '  clean=  [default: True]'
+  echo '      Whether to execute `git clean -ffdx && git reset --hard HEAD` before'
+  echo '  filter='
+  echo '      Partially clone against a given filter. Overrides sparse-checkout if'
+  echo '  sparse-checkout='
+  echo '      Do a sparse checkout on given patterns. Each pattern should be separ'
+  echo '  sparse-checkout-cone-mode=  [default: True]'
+  echo '      Specifies whether to use cone-mode when doing a sparse checkout.'
+  echo '  fetch-depth=  [default: 1]'
+  echo '      Number of commits to fetch. 0 indicates all history for all branches'
+  echo '  fetch-tags='
+  echo '      Whether to fetch tags, even if fetch-depth > 0.'
+  echo '  show-progress=  [default: True]'
+  echo '      Whether to show progress status output when fetching.'
+  echo '  lfs='
+  echo '      Whether to download Git-LFS files'
+  echo '  submodules='
+  echo '      Whether to checkout submodules: `true` to checkout submodules or `re'
+  echo '  set-safe-directory=  [default: True]'
+  echo '      Add repository path as safe.directory for Git global config by runni'
+  echo '  github-server-url='
+  echo '      The base URL for the GitHub instance that you are trying to clone fr'
+  echo ''
+  echo 'Options:'
+  echo '  --inputs-json JSON   All inputs as a JSON object string'
+  echo '  --inputs-file FILE   YAML or JSON file with inputs (YAML requires yq)'
+  echo '  --post               Run the post/cleanup step instead of main'
+  echo '  --workspace DIR      Set GITHUB_WORKSPACE (default: cwd)'
+  echo '  --env KEY=VALUE      Extra environment variable (repeatable)'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -115,11 +133,11 @@ if [[ -n "${_file_inputs:-}" ]]; then
       export "${_pair%%=*}=${_pair#*=}"
     done < <(
       _JSON_INPUT="$(yq -o json . "$_file_inputs")" node -e "
-        const inp = JSON.parse(process.env._JSON_INPUT);
-        for (const [k, v] of Object.entries(inp)) {
-          const key = 'INPUT_' + k.toUpperCase().replace(/-/g, '_');
-          process.stdout.write(key + '=' + String(v) + '\0');
-        }
+      const inp = JSON.parse(process.env._JSON_INPUT);
+      for (const [k, v] of Object.entries(inp)) {
+        const key = 'INPUT_' + k.toUpperCase().replace(/-/g, '_');
+        process.stdout.write(key + '=' + String(v) + '\0');
+      }
       "
     )
   else
@@ -133,18 +151,17 @@ for _kv in "${_extra_env[@]+"${_extra_env[@]}"}"; do
 done
 
 # Apply baked-in literal defaults for inputs not yet set
-# (Expression defaults like ${{ github.token }} are omitted — supply those explicitly)
-: "${INPUT_FETCH_DEPTH:='1'}"
-: "${INPUT_FETCH_TAGS:='false'}"
-: "${INPUT_SHOW_PROGRESS:='true'}"
-: "${INPUT_LFS:='false'}"
-: "${INPUT_SUBMODULES:='false'}"
-: "${INPUT_SET_SAFE_DIRECTORY:='true'}"
-: "${INPUT_SPARSE_CHECKOUT_CONE_MODE:='true'}"
-: "${INPUT_PERSIST_CREDENTIALS:='true'}"
-: "${INPUT_CLEAN:='true'}"
-: "${INPUT_SSH_STRICT:='true'}"
+: "${INPUT_SSH_STRICT:='True'}"
 : "${INPUT_SSH_USER:='git'}"
+: "${INPUT_PERSIST_CREDENTIALS:='True'}"
+: "${INPUT_CLEAN:='True'}"
+: "${INPUT_SPARSE_CHECKOUT_CONE_MODE:='True'}"
+: "${INPUT_FETCH_DEPTH:='1'}"
+: "${INPUT_FETCH_TAGS:='False'}"
+: "${INPUT_SHOW_PROGRESS:='True'}"
+: "${INPUT_LFS:='False'}"
+: "${INPUT_SUBMODULES:='False'}"
+: "${INPUT_SET_SAFE_DIRECTORY:='True'}"
 
 # Set up GITHUB_* environment file sinks
 _gh_output="$(mktemp)"
