@@ -92,8 +92,8 @@ jobs:
 
       - name: Verify the clone
         run: |
-          echo "Cloned files:"
-          ls /tmp/cloned/
+          echo "=== Files in cloned workspace ==="
+          ls -la /tmp/cloned/
           echo ""
-          echo "Git log:"
+          echo "=== Git log ==="
           git -C /tmp/cloned log --oneline -5

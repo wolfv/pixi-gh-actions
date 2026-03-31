@@ -91,8 +91,8 @@ while [[ $# -gt 0 ]]; do
     --inputs-file)  _file_inputs="$2"; shift 2 ;;
     --help|-h)      _usage; exit 0 ;;
     *=*)
-      # key=value → INPUT_KEY=value  (bash 4+: ^^ = uppercase, //- = replace -)
-      _k="${1%%=*}"; _k="${_k^^}"; _k="${_k//-/_}"
+      # key=value → INPUT_KEY=value  (tr: POSIX-safe, works on bash 3.2/macOS)
+      _k="$(echo "${1%%=*}" | tr 'a-z-' 'A-Z_')"
       export "INPUT_$_k=${1#*=}"
       shift ;;
     *) echo "Unknown argument: $1" >&2; _usage >&2; exit 1 ;;
