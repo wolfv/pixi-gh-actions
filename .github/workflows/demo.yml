@@ -1,0 +1,98 @@
+name: Demo — package GitHub Actions as conda packages
+
+# This workflow is itself a demonstration:
+#   - It uses actions/checkout (the real one) to check out this repo.
+#   - It then packages that *same* action as a conda package using rattler-build.
+#   - It installs the conda package and uses the generated `checkout` CLI to
+#     clone the repo a second time — proving the full round-trip works.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  demo:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-64
+          - os: macos-latest
+            platform: osx-arm64
+
+    steps:
+      # ── Step 0: bootstrap ────────────────────────────────────────────────
+      - name: Checkout this repo (via real GitHub Actions runner)
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.8
+        with:
+          pixi-version: latest
+          cache: true
+
+      # ── Step 1: generate the rattler-build recipe ────────────────────────
+      - name: Generate recipe for actions/checkout@v4.2.2
+        run: pixi run python generate_recipe.py actions/checkout@v4.2.2
+
+      - name: Show generated files
+        run: |
+          echo "=== recipe.yaml ==="
+          cat recipes/gh-action-actions-checkout/recipe.yaml
+          echo ""
+          echo "=== checkout.sh (first 40 lines) ==="
+          head -40 recipes/gh-action-actions-checkout/checkout.sh
+
+      # ── Step 2: build the conda package ─────────────────────────────────
+      - name: Build with rattler-build
+        run: |
+          pixi run rattler-build build \
+            --recipe recipes/gh-action-actions-checkout/recipe.yaml \
+            --output-dir ./channel
+
+      - name: Show built artefact
+        run: find channel/${{ matrix.platform }} -name '*.conda' -ls
+
+      # ── Step 3: install the package in a fresh pixi environment ─────────
+      - name: Create test environment
+        run: |
+          mkdir -p /tmp/runner
+          cat > /tmp/runner/pixi.toml << EOF
+          [workspace]
+          name = "gh-actions-runner"
+          channels = ["file://${{ github.workspace }}/channel", "conda-forge"]
+          platforms = ["${{ matrix.platform }}"]
+
+          [dependencies]
+          gh-action-actions-checkout = "*"
+          EOF
+          cd /tmp/runner && pixi install
+
+      - name: checkout --help
+        run: cd /tmp/runner && pixi run checkout --help
+
+      # ── Step 4: use the packaged action to clone this very repo ─────────
+      - name: Run packaged checkout to clone this repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/cloned
+          cd /tmp/runner && pixi run checkout \
+            repository=${{ github.repository }} \
+            ref=${{ github.sha }} \
+            fetch-depth=1 \
+            token=$GITHUB_TOKEN \
+            workspace=/tmp/cloned
+
+      - name: Verify the clone
+        run: |
+          echo "Cloned files:"
+          ls /tmp/cloned/
+          echo ""
+          echo "Git log:"
+          git -C /tmp/cloned log --oneline -5

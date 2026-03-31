@@ -357,6 +357,11 @@ def render_bash_entry_point(owner: str, repo: str, meta: dict[str, Any]) -> str:
         'export GITHUB_ENV="$_gh_env"',
         'export GITHUB_PATH="$_gh_path"',
         "export GITHUB_STEP_SUMMARY=/dev/null",
+        # Provide defaults for runner env vars expected by @actions/toolkit.
+        # The real GitHub runner sets these; outside it users can override via --env.
+        'export RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"',
+        'export RUNNER_TOOL_CACHE="${RUNNER_TOOL_CACHE:-${RUNNER_TEMP}/tool-cache}"',
+        'mkdir -p "$RUNNER_TEMP" "$RUNNER_TOOL_CACHE"',
         'export PATH="$_PREFIX/bin:$PATH"',
         "",
     )
