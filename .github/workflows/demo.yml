@@ -79,16 +79,16 @@ jobs:
 
       # ── Step 4: use the packaged action to clone this very repo ─────────
       - name: Run packaged checkout to clone this repo
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p /tmp/cloned
-          cd /tmp/runner && pixi run checkout \
+          # Pass --workspace explicitly (key=value form is for action inputs only).
+          # Unset GITHUB_WORKSPACE so the action uses the value we supply via --workspace.
+          cd /tmp/runner && unset GITHUB_WORKSPACE && pixi run checkout \
             repository=${{ github.repository }} \
             ref=${{ github.sha }} \
             fetch-depth=1 \
-            token=$GITHUB_TOKEN \
-            workspace=/tmp/cloned
+            token=${{ secrets.GITHUB_TOKEN }} \
+            --workspace /tmp/cloned
 
       - name: Verify the clone
         run: |
